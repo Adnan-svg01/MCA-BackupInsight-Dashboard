@@ -33,7 +33,7 @@
                     <p class="metric-val" id="unresolvedFailures">{{ unresolved_failures }}</p>
                 </div>
             </div>
-            <button class="btn-primary refresh-btn" id="refreshDashboard" type="button" onclick="refreshDashboard()">Refresh Data</button>
+            <button class="btn-primary refresh-btn" id="refreshDashboard">Refresh Data</button>
         </div>
 
         <div class="assistant-banner">
@@ -297,30 +297,12 @@
                 });
         }
 
-        window.addEventListener('DOMContentLoaded', function() {
-            const refreshButton = document.getElementById('refreshDashboard');
-            const chatSubmit = document.getElementById('chatSubmit');
-            const chatInput = document.getElementById('chatInput');
-            const chatWidgetButton = document.getElementById('chatWidgetButton');
-
-            if (refreshButton) {
-                refreshButton.addEventListener('click', refreshDashboard);
-            }
-            if (chatSubmit) {
-                chatSubmit.addEventListener('click', submitChatQuestion);
-            }
-            if (chatInput) {
-                chatInput.addEventListener('keydown', function(event) {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                        submitChatQuestion();
-                    }
-                });
-            }
-            if (chatWidgetButton) {
-                chatWidgetButton.addEventListener('click', () => {
-                    toggleChatConsole(true);
-                });
+        document.getElementById('refreshDashboard').addEventListener('click', refreshDashboard);
+        document.getElementById('chatSubmit').addEventListener('click', submitChatQuestion);
+        document.getElementById('chatInput').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                submitChatQuestion();
             }
         });
 
