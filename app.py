@@ -314,29 +314,11 @@ def simulate_job_updates():
         }
     ]
 
-    job_changed = False
-    for job in JOBS_DATABASE:
-        if random.random() < 0.22:
-            job_changed = True
-            if job["sla_status"] == "Success":
-                job["sla_status"] = "Failed"
-                failure = random.choice(failure_reasons)
-                job["error_code"] = failure["error_code"]
-                job["error_message"] = failure["error_message"]
-            else:
-                job["sla_status"] = "Success"
-                job.pop("error_code", None)
-                job.pop("error_message", None)
-        if random.random() < 0.15:
-            job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(1, 120))).strftime("%Y-%m-%d %H:%M:%S")
-            job_changed = True
-
-    if not job_changed and JOBS_DATABASE:
-        # Force a visible update on refresh if no random changes occurred
-        job = random.choice(JOBS_DATABASE)
+    jobs_to_update = random.sample(JOBS_DATABASE, k=max(1, min(3, len(JOBS_DATABASE))))
+    for job in jobs_to_update:
         if job["sla_status"] == "Success":
-            failure = random.choice(failure_reasons)
             job["sla_status"] = "Failed"
+            failure = random.choice(failure_reasons)
             job["error_code"] = failure["error_code"]
             job["error_message"] = failure["error_message"]
         else:
@@ -344,6 +326,11 @@ def simulate_job_updates():
             job.pop("error_code", None)
             job.pop("error_message", None)
         job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(1, 120))).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Tidy up the remaining jobs with a timestamp update for freshness.
+    for job in JOBS_DATABASE:
+        if job not in jobs_to_update and random.random() < 0.25:
+            job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(5, 90))).strftime("%Y-%m-%d %H:%M:%S")
 
 # 4. API Route to process the "Retry Backup" trigger action
 @app.route('/api/job/<job_id>/retry', methods=['POST'])

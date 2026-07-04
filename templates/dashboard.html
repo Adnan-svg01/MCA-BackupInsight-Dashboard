@@ -33,7 +33,10 @@
                     <p class="metric-val" id="unresolvedFailures">{{ unresolved_failures }}</p>
                 </div>
             </div>
-            <button class="btn-primary refresh-btn" id="refreshDashboard" type="button" onclick="refreshDashboard()">Refresh Data</button>
+            <div class="refresh-actions">
+                <button class="btn-primary refresh-btn" id="refreshDashboard" type="button" onclick="refreshDashboard()">Refresh Data</button>
+                <div class="refresh-meta">Last refreshed: <span id="lastRefreshed">Not yet</span></div>
+            </div>
         </div>
 
         <div class="assistant-banner">
@@ -268,6 +271,11 @@
                         showToast(`${failedJobs.length} backup job${failedJobs.length === 1 ? '' : 's'} failed on refresh.`, failedJobs[0].job_id);
                     } else {
                         widgetBadge.style.display = 'none';
+                    }
+
+                    const lastRefreshed = document.getElementById('lastRefreshed');
+                    if (lastRefreshed) {
+                        lastRefreshed.innerText = new Date().toLocaleTimeString();
                     }
 
                     const tbody = document.getElementById('jobsTableBody');
