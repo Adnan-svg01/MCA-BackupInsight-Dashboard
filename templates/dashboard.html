@@ -241,7 +241,7 @@
             refreshButton.disabled = true;
             refreshButton.innerText = 'Refreshing...';
 
-            fetch('/api/jobs/refresh')
+            fetch('/api/jobs/refresh', { cache: 'no-store' })
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('totalTb').innerText = `${data.total_tb} TB`;

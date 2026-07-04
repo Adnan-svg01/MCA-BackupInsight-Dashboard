@@ -311,22 +311,33 @@ def simulate_job_updates():
         {
             "error_code": "AUTH-401",
             "error_message": "Credentials expired for the target backup client."
+        },
+        {
+            "error_code": "STORAGE-QUOTA-EXCEEDED",
+            "error_message": "Target repository storage quota was exceeded while writing backup increments."
+        },
+        {
+            "error_code": "PERMISSION-DENIED",
+            "error_message": "Backup agent was denied access to source data due to permissions."
         }
     ]
 
+    jobs_to_update = random.sample(JOBS_DATABASE, k=max(1, min(3, len(JOBS_DATABASE))))
+    for job in jobs_to_update:
+        if job["sla_status"] == "Success":
+            job["sla_status"] = "Failed"
+            failure = random.choice(failure_reasons)
+            job["error_code"] = failure["error_code"]
+            job["error_message"] = failure["error_message"]
+        else:
+            job["sla_status"] = "Success"
+            job.pop("error_code", None)
+            job.pop("error_message", None)
+        job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(1, 120))).strftime("%Y-%m-%d %H:%M:%S")
+
     for job in JOBS_DATABASE:
-        if random.random() < 0.22:
-            if job["sla_status"] == "Success":
-                job["sla_status"] = "Failed"
-                failure = random.choice(failure_reasons)
-                job["error_code"] = failure["error_code"]
-                job["error_message"] = failure["error_message"]
-            else:
-                job["sla_status"] = "Success"
-                job.pop("error_code", None)
-                job.pop("error_message", None)
-        if random.random() < 0.15:
-            job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(1, 120))).strftime("%Y-%m-%d %H:%M:%S")
+        if job not in jobs_to_update and random.random() < 0.35:
+            job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(5, 90))).strftime("%Y-%m-%d %H:%M:%S")
 
 # 4. API Route to process the "Retry Backup" trigger action
 @app.route('/api/job/<job_id>/retry', methods=['POST'])
