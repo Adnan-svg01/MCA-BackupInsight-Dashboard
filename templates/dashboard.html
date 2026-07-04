@@ -33,7 +33,6 @@
                     <p class="metric-val" id="unresolvedFailures">{{ unresolved_failures }}</p>
                 </div>
             </div>
-            <button class="btn-primary refresh-btn" id="refreshDashboard">Refresh Data</button>
         </div>
 
         <div class="assistant-banner">
@@ -238,8 +237,10 @@
 
         function refreshDashboard() {
             const refreshButton = document.getElementById('refreshDashboard');
-            refreshButton.disabled = true;
-            refreshButton.innerText = 'Refreshing...';
+            if (refreshButton) {
+                refreshButton.disabled = true;
+                refreshButton.innerText = 'Refreshing...';
+            }
 
             fetch('/api/jobs/refresh', { cache: 'no-store' })
                 .then(res => res.json())
@@ -292,12 +293,13 @@
                 })
                 .finally(() => {
                     const refreshButton = document.getElementById('refreshDashboard');
-                    refreshButton.disabled = false;
-                    refreshButton.innerText = 'Refresh Data';
+                    if (refreshButton) {
+                        refreshButton.disabled = false;
+                        refreshButton.innerText = 'Refresh Data';
+                    }
                 });
         }
 
-        document.getElementById('refreshDashboard').addEventListener('click', refreshDashboard);
         document.getElementById('chatSubmit').addEventListener('click', submitChatQuestion);
         document.getElementById('chatInput').addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
@@ -305,6 +307,10 @@
                 submitChatQuestion();
             }
         });
+
+        // Automatically refresh the dashboard every 30 seconds.
+        refreshDashboard();
+        setInterval(refreshDashboard, 30000);
 
         function addChatMessage(content, sender) {
             const windowEl = document.getElementById('chatWindow');
