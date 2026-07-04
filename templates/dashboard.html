@@ -77,23 +77,43 @@
                     </tbody>
                 </table>
             </section>
-
-            <aside class="chat-panel">
-                <div class="chat-header">
-                    <div>
-                        <h3>Backup Support Chat</h3>
-                        <p>Ask questions about failures, causes, or resolutions.</p>
-                    </div>
-                </div>
-                <div id="chatWindow" class="chat-window">
-                    <div class="chat-message system-message">Ask about a backup failure or type a question like "Why did JOB-106 fail?"</div>
-                </div>
-                <div class="chat-input-row">
-                    <input type="text" id="chatInput" placeholder="Ask backup support..." />
-                    <button class="btn-primary" id="chatSubmit" type="button">Send</button>
-                </div>
-            </aside>
         </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div class="chat-widget" id="chatWidget">
+        <div class="chat-console" id="chatConsole" aria-hidden="true">
+            <div class="chat-console-header">
+                <div class="chat-avatar">
+                    <span class="robot-ear left"></span>
+                    <span class="robot-face">
+                        <span class="robot-eye"></span>
+                        <span class="robot-eye right"></span>
+                        <span class="robot-mouth"></span>
+                    </span>
+                    <span class="robot-ear right"></span>
+                </div>
+                <div class="chat-console-title">
+                    <div class="chat-title">Backup Bot</div>
+                    <div class="chat-subtitle">Ask about failed backups or resolutions.</div>
+                </div>
+                <button class="chat-close" type="button" onclick="toggleChatConsole(false)" aria-label="Close chat console">×</button>
+            </div>
+            <div class="chat-console-body" id="chatWindow">
+                <div class="chat-console-message assistant-message">Hi! Ask a question like "Why did JOB-106 fail?"</div>
+            </div>
+            <div class="chat-console-footer">
+                <input type="text" id="chatInput" placeholder="Type your question..." autocomplete="off" />
+                <button class="btn-primary" id="chatSubmit" type="button">Send</button>
+            </div>
+        </div>
+
+        <button class="chat-toggle-button" id="chatWidgetButton" type="button" aria-label="Open backup assistant">
+            <span class="chat-face-icon"></span>
+            <span class="chat-button-text">Backup Bot</span>
+            <span id="chatWidgetBadge" class="chat-widget-badge" style="display:none">0</span>
+        </button>
     </div>
 
     <div id="diagnosticModal" class="modal-overlay" style="display: none;">
@@ -125,10 +145,6 @@
     </div>
 
     <div id="toastContainer" class="toast-container"></div>
-    <button id="chatWidgetButton" class="chat-widget-button" type="button">
-        Chat with Backup Assistant
-        <span id="chatWidgetBadge" class="chat-widget-badge" style="display:none">0</span>
-    </button>
 
     <script>
         let activeJobId = null;
@@ -293,15 +309,27 @@
         function addChatMessage(content, sender) {
             const windowEl = document.getElementById('chatWindow');
             const messageEl = document.createElement('div');
-            messageEl.className = `chat-message ${sender}-message`;
+            messageEl.className = `chat-console-message ${sender}-message`;
             messageEl.innerText = content;
             windowEl.appendChild(messageEl);
             windowEl.scrollTop = windowEl.scrollHeight;
         }
 
+        function toggleChatConsole(show) {
+            const consoleEl = document.getElementById('chatConsole');
+            const open = show !== undefined ? show : !consoleEl.classList.contains('open');
+            if (open) {
+                consoleEl.classList.add('open');
+                consoleEl.setAttribute('aria-hidden', 'false');
+                document.getElementById('chatInput').focus();
+            } else {
+                consoleEl.classList.remove('open');
+                consoleEl.setAttribute('aria-hidden', 'true');
+            }
+        }
+
         document.getElementById('chatWidgetButton').addEventListener('click', () => {
-            document.querySelector('.chat-panel').scrollIntoView({ behavior: 'smooth' });
-            document.getElementById('chatInput').focus();
+            toggleChatConsole(true);
         });
 
         function submitChatQuestion() {
