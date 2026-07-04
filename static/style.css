@@ -265,66 +265,13 @@ p {
     overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.16);
     box-shadow: 0 28px 70px rgba(15, 23, 42, 0.12);
-    table-layout: fixed;
 }
 
 .jobs-table th,
 .jobs-table td {
-    padding: 18px 14px;
+    padding: 18px 20px;
     text-align: left;
     border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.jobs-table th {
-    word-break: normal;
-}
-
-.jobs-table th:nth-child(1),
-.jobs-table td:nth-child(1) {
-    width: 13%;
-}
-
-.jobs-table th:nth-child(2),
-.jobs-table td:nth-child(2) {
-    width: 18%;
-}
-
-.jobs-table th:nth-child(3),
-.jobs-table td:nth-child(3) {
-    width: 12%;
-}
-
-.jobs-table th:nth-child(4),
-.jobs-table td:nth-child(4) {
-    width: 12%;
-}
-
-.jobs-table th:nth-child(5),
-.jobs-table td:nth-child(5) {
-    width: 10%;
-}
-
-.jobs-table th:nth-child(6),
-.jobs-table td:nth-child(6) {
-    width: 12%;
-}
-
-.jobs-table th:nth-child(7),
-.jobs-table td:nth-child(7) {
-    width: 12%;
-}
-
-.jobs-table th:nth-child(8),
-.jobs-table td:nth-child(8) {
-    width: 8%;
-}
-
-.jobs-table th:nth-child(9),
-.jobs-table td:nth-child(9) {
-    width: 12%;
 }
 
 .jobs-table th {
@@ -654,9 +601,6 @@ p {
     .table-scroll {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        display: flex;
-        justify-content: center;
-        width: 100%;
         margin-left: -18px;
         margin-right: -18px;
         padding-left: 18px;
@@ -665,7 +609,6 @@ p {
 
     .table-scroll table {
         min-width: 920px;
-        width: auto;
     }
 
     .chat-toggle-button {
