@@ -244,7 +244,7 @@
                 refreshButton.innerText = 'Refreshing...';
             }
 
-            fetch('/api/jobs/refresh', { cache: 'no-store' })
+            fetch('/api/jobs/refresh')
                 .then(res => {
                     if (!res.ok) {
                         throw new Error(`Refresh request failed: ${res.status}`);
