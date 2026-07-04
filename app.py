@@ -1,5 +1,8 @@
 import os
 import random
+import json
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, abort, request
 
@@ -140,30 +143,60 @@ def get_job_details(job_id):
 ERROR_GUIDANCE = {
     "0x2000001a": {
         "cause": "Network timeout during the data transfer pipeline initialization.",
-        "resolution": "Check the MediaAgent network connectivity, firewall rules, and target host reachability. Retry the job after restoring the connection."
+        "resolution": "Validate MediaAgent network connectivity, firewall settings, and host reachability. Restart the backup service and rerun the job after restoring connectivity."
     },
     "vmextensionprovisioningerror": {
-        "cause": "VM backup extension failed to provision on the target virtual machine.",
-        "resolution": "Verify the Azure VM agent is healthy, the extension is installed, and the VM has sufficient resources for a snapshot."
+        "cause": "Azure VM backup extension failed to provision on the target virtual machine.",
+        "resolution": "Check the Azure VM agent health, snapshot extension status, and VM resource availability. Reinstall or upgrade the extension if necessary, then retry the job."
     },
     "auth-401": {
-        "cause": "Target credentials have expired or are rejected by the backup service.",
-        "resolution": "Renew the service account credentials, update the connected backup target, and rerun the job."
+        "cause": "Target credentials are expired or rejected by the backup service.",
+        "resolution": "Rotate the service account credentials, verify their validity in the backup policy, and update the target configuration before retrying."
     },
     "storage-quota-exceeded": {
-        "cause": "Destination storage capacity has been exceeded for the target backup repository.",
-        "resolution": "Free up storage or increase the repository quota, then rerun the affected backup jobs."
+        "cause": "The backup target repository has exceeded available storage capacity.",
+        "resolution": "Delete stale backups, expand the target repository quota, or move backups to an alternate storage location and rerun the job."
     },
     "permission-denied": {
-        "cause": "The backup agent does not have the required file system permissions to access source files.",
-        "resolution": "Review the target permissions and ensure the backup service account has read access to all required directories."
+        "cause": "The backup agent lacks the required file system permissions to read source data.",
+        "resolution": "Grant the backup service account read access to the source directories and verify access using the same credentials before rerunning the backup."
+    },
+    "network-timeout": {
+        "cause": "Network latency or packet loss is interrupting backup traffic.",
+        "resolution": "Inspect NIC statistics, switch and router logs, and any WAN accelerator paths. Stabilize network throughput, then re-run the backup."
+    },
+    "snapshot-failure": {
+        "cause": "The storage snapshot or VSS provider did not complete successfully.",
+        "resolution": "Verify the snapshot provider, check disk IO pressure, and ensure no conflicting snapshot jobs are running. Restart the provider service and retry."
+    },
+    "disk-full": {
+        "cause": "The backup target disk is full or near capacity.",
+        "resolution": "Free up space on the repository, archive old snapshots, or extend the backup volume before restarting the failed job."
+    },
+    "dns-failure": {
+        "cause": "The backup agent cannot resolve the target host name.",
+        "resolution": "Check DNS records, host file entries, and name resolution from the backup server. Use the IP address temporarily if DNS is incorrect."
     }
 }
 
+GENERIC_FAILURE_KB = {
+    "network": "Network issues are among the most common backup causes. Validate firewall rules, latency, packet loss, and routing between source and target systems. Use dedicated backup VLANs or QoS if possible.",
+    "storage": "Insufficient storage space often causes backup failures. Review repository usage, delete outdated snapshots, and consider storage tiering or expanding the target volume.",
+    "permission": "Permissions are critical. Ensure the backup service account has read access to the source files and write access to the target repository. Check for NTFS, ACL, or UNIX permission mismatches.",
+    "credentials": "Expired or invalid credentials will stop backups immediately. Rotate backup credentials regularly, and verify the account has the required privileges before retrying.",
+    "snapshot": "Snapshot failures usually indicate problems with the snapshot provider, VM agent, or disk I/O. Check the provider logs, ensure the VM is healthy, and retry the snapshot job separately.",
+    "agent": "Agent health is important. Confirm the backup agent service is running, up to date, and can communicate with the central server. Restart or reinstall the agent if it reports errors.",
+    "timeout": "Timeouts often point to overloaded infrastructure or network congestion. Reduce the backup window, run smaller incremental jobs, or move heavy jobs to a less busy timeframe.",
+    "quota": "Repository quota issues are solved by reclaiming space, extending the storage pool, or redirecting backups to a secondary target. Monitor storage growth and prune old backups proactively.",
+    "ssl": "SSL or certificate issues can block connections. Verify the certificate chain, trust store configuration, and expiration dates on both ends of the backup path.",
+    "policy": "Backup policies must match the data and recovery objectives. Review retention, schedules, and target selection, then align them with your SLA requirements."
+}
+
 FAQ_REFERENCE = {
-    "failure": "Backups can fail due to connectivity problems, expired credentials, insufficient storage, or permission issues. Use the chatbot to ask about a specific job ID for its exact cause.",
-    "resolution": "Most backup failures are resolved by correcting the underlying problem: restore network access, renew credentials, increase disk quota, or fix file permissions.",
-    "job": "A failed job usually includes an error code and message. Chat with the assistant using the job ID, and it will tell you the likely cause and resolution."
+    "failure": "Backup failures are usually caused by network interruptions, target storage issues, expired credentials, or permission problems. Ask a specific job ID for exact diagnostics.",
+    "resolution": "The most reliable fix is to identify the root cause from the error code, validate connectivity and credentials, then rerun the failed job after correcting the problem.",
+    "job": "A failed job includes an error code and message. Ask about the specific job ID and the backup bot will provide the most likely cause and remediation steps.",
+    "real world": "I can provide real backup best practices based on industry knowledge. For live internet-sourced articles, you would connect this app to a search or knowledge API."
 }
 
 @app.route('/api/chat', methods=['POST'])
@@ -178,17 +211,34 @@ def chat_bot():
 
 def answer_backup_question(question):
     text = question.lower()
+
+    if any(term in text for term in ["internet", "online", "web", "google", "search", "article", "live", "vendor", "knowledge base"]):
+        internet_answer = internet_search_snippet(question)
+        if internet_answer:
+            return internet_answer
+        return ("I currently draw on a built-in backup knowledge base with real-world troubleshooting guidance. "
+                "For live vendor KB pages, connect this app to a search or AI knowledge API.")
+
     for job in JOBS_DATABASE:
         if job["job_id"].lower() in text:
             if job["sla_status"] == "Failed":
                 code = job.get("error_code", "UNKNOWN")
-                guidance = ERROR_GUIDANCE.get(code.lower(), None)
+                guidance = ERROR_GUIDANCE.get(code.lower())
                 if guidance:
+                    engine_note = ''
+                    if job.get("backup_engine"):
+                        engine_note = f" This failure is on {job['backup_engine']}, so validate the agent and repository settings for that platform."
                     return (f"{job['job_id']} failed with error code {code}. Cause: {guidance['cause']} "
-                            f"Resolution: {guidance['resolution']}")
+                            f"Resolution: {guidance['resolution']}{engine_note}")
                 return (f"{job['job_id']} failed with error code {code}. "
-                        f"Message: {job.get('error_message', 'No additional details available.')}")
-            return f"{job['job_id']} completed successfully. No active failure is currently recorded for this job."
+                        f"Message: {job.get('error_message', 'No additional details available.')}. "
+                        "Check the agent logs, network connectivity, and storage target health.")
+            return (f"{job['job_id']} completed successfully. No active failure is currently recorded for this job. "
+                    "If you need help with past failures, ask for the error code or backup details.")
+
+    for keyword, guidance in GENERIC_FAILURE_KB.items():
+        if keyword in text:
+            return guidance
 
     if any(term in text for term in ["cause", "why", "reason", "failed", "failure"]):
         for key, answer in FAQ_REFERENCE.items():
@@ -196,14 +246,41 @@ def answer_backup_question(question):
                 return answer
         return FAQ_REFERENCE["failure"]
 
-    if any(term in text for term in ["resolve", "fix", "solution", "resolve"]):
+    if any(term in text for term in ["resolve", "fix", "solution", "repair", "recover"]):
         return FAQ_REFERENCE["resolution"]
 
     if any(term in text for term in ["sla", "success rate"]):
         payload = build_dashboard_payload()
         return f"Current SLA success rate is {payload['sla_value']}% with {payload['unresolved_failures']} unresolved failures."
 
-    return "I can help with backup failures, root causes, resolutions, and job-specific error details. Ask about a job ID or the type of backup failure." 
+    if any(term in text for term in ["backup best", "best practice", "recommendation", "advice"]):
+        return ("For real-world backup reliability, use strong retention policies, monitor target capacity, keep agents up to date, "
+                "validate credentials before windows, and avoid storing backups on the same physical infrastructure as the source.")
+
+    return ("I can help with backup failures, root causes, resolutions, and job-specific error details. "
+            "Ask about a job ID, an error code, or a specific failure symptom like network, quota, or permissions.")
+
+
+def internet_search_snippet(question):
+    try:
+        query = urllib.parse.quote(question)
+        url = f"https://api.duckduckgo.com/?q={query}&format=json&no_redirect=1&skip_disambig=1"
+        with urllib.request.urlopen(url, timeout=8) as response:
+            body = response.read().decode('utf-8')
+        data = json.loads(body)
+        abstract = data.get("AbstractText", "").strip()
+        if abstract:
+            return f"Internet summary: {abstract}"
+        related = data.get("RelatedTopics", [])
+        if isinstance(related, list):
+            for item in related:
+                if isinstance(item, dict):
+                    text = item.get("Text", "").strip()
+                    if text:
+                        return f"Internet summary: {text}"
+        return None
+    except Exception:
+        return None
 
 
 def build_dashboard_payload():
