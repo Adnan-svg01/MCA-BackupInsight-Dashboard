@@ -18,19 +18,22 @@
             </div>
         </div>
 
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <h4>CAPACITY MONITORED</h4>
-                <p class="metric-val">{{ total_tb }} TB</p>
+        <div class="dashboard-toolbar">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h4>CAPACITY MONITORED</h4>
+                    <p class="metric-val" id="totalTb">{{ total_tb }} TB</p>
+                </div>
+                <div class="metric-card {% if sla_value < 80.0 %}metric-breached{% else %}metric-healthy{% endif %}" id="slaCard">
+                    <h4>SLA SUCCESS RATE</h4>
+                    <p class="metric-val" id="slaValue">{{ sla_value }}%</p>
+                </div>
+                <div class="metric-card">
+                    <h4>UNRESOLVED FAILURES</h4>
+                    <p class="metric-val" id="unresolvedFailures">{{ unresolved_failures }}</p>
+                </div>
             </div>
-            <div class="metric-card {% if sla_value < 80.0 %}metric-breached{% else %}metric-healthy{% endif %}">
-                <h4>SLA SUCCESS RATE</h4>
-                <p class="metric-val">{{ sla_value }}%</p>
-            </div>
-            <div class="metric-card">
-                <h4>UNRESOLVED FAILURES</h4>
-                <p class="metric-val">{{ unresolved_failures }}</p>
-            </div>
+            <button class="btn-primary refresh-btn" id="refreshDashboard">Refresh Data</button>
         </div>
 
         <h3>Recent Job Executions (Cross-Platform)</h3>
@@ -45,7 +48,7 @@
                     <th>Execution Time (UTC)</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="jobsTableBody">
                 {% for job in jobs %}
                 <tr class="job-row {% if job.sla_status == 'Failed' %}row-failed clickable-row{% else %}non-clickable-row{% endif %}"
                     data-job-id="{{ job.job_id }}">
@@ -92,6 +95,8 @@
             </div>
         </div>
     </div>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <script>
         let activeJobId = null;
@@ -161,8 +166,134 @@
                     setTimeout(() => {
                         alert(`Action Success: ${data.message}`);
                         closeModal();
-                        window.location.reload();
+                        refreshDashboard();
                     }, 1200);
+                });
+        }
+
+        function refreshDashboard() {
+            const refreshButton = document.getElementById('refreshDashboard');
+            refreshButton.disabled = true;
+            refreshButton.innerText = 'Refreshing...';
+
+            fetch('/api/jobs/refresh')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('totalTb').innerText = `${data.total_tb} TB`;
+                    document.getElementById('slaValue').innerText = `${data.sla_value}%`;
+                    document.getElementById('unresolvedFailures').innerText = data.unresolved_failures;
+
+                    const slaCard = document.getElementById('slaCard');
+                    slaCard.classList.toggle('metric-breached', data.sla_value < 80.0);
+                    slaCard.classList.toggle('metric-healthy', data.sla_value >= 80.0);
+
+                    const tbody = document.getElementById('jobsTableBody');
+                    tbody.innerHTML = '';
+                    data.jobs.forEach(job => {
+                        const row = document.createElement('tr');
+                        const isFailed = job.sla_status === 'Failed';
+                        row.className = `job-row ${isFailed ? 'row-failed clickable-row' : 'non-clickable-row'}`;
+                        row.dataset.jobId = job.job_id;
+                        row.innerHTML = `
+                            <td><strong>${job.job_id}</strong></td>
+                            <td>${job.client_target}</td>
+                            <td>${job.backup_engine}</td>
+                            <td>${job.data_handled_gb} GB</td>
+                            <td>
+                                <span class="badge ${isFailed ? 'badge-failed' : 'badge-success'} sla-status-text">
+                                    ${job.sla_status}
+                                </span>
+                            </td>
+                            <td>${job.execution_time_utc}</td>
+                        `;
+                        row.addEventListener('click', function () {
+                            const statusBadge = this.querySelector('.sla-status-text');
+                            if (statusBadge && statusBadge.classList.contains('badge-failed')) {
+                                openJobDiagnostics(this.dataset.jobId);
+                            }
+                        });
+                        tbody.appendChild(row);
+                    });
+                })
+                .finally(() => {
+                    const refreshButton = document.getElementById('refreshDashboard');
+                    refreshButton.disabled = false;
+                    refreshButton.innerText = 'Refresh Data';
+                });
+        }
+
+        document.getElementById('refreshDashboard').addEventListener('click', refreshDashboard);
+
+        function showToast(message, jobId) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast toast-error';
+            toast.innerText = message;
+            if (jobId) {
+                toast.classList.add('toast-clickable');
+                toast.title = 'Click to view failure details';
+                toast.addEventListener('click', () => openJobDiagnostics(jobId));
+            }
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('dismiss');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 4200);
+        }
+
+        function refreshDashboard() {
+            const refreshButton = document.getElementById('refreshDashboard');
+            refreshButton.disabled = true;
+            refreshButton.innerText = 'Refreshing...';
+
+            fetch('/api/jobs/refresh')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('totalTb').innerText = `${data.total_tb} TB`;
+                    document.getElementById('slaValue').innerText = `${data.sla_value}%`;
+                    document.getElementById('unresolvedFailures').innerText = data.unresolved_failures;
+
+                    const slaCard = document.getElementById('slaCard');
+                    slaCard.classList.toggle('metric-breached', data.sla_value < 80.0);
+                    slaCard.classList.toggle('metric-healthy', data.sla_value >= 80.0);
+
+                    const tbody = document.getElementById('jobsTableBody');
+                    tbody.innerHTML = '';
+                    data.jobs.forEach(job => {
+                        const row = document.createElement('tr');
+                        const isFailed = job.sla_status === 'Failed';
+                        row.className = `job-row ${isFailed ? 'row-failed clickable-row' : 'non-clickable-row'}`;
+                        row.dataset.jobId = job.job_id;
+                        row.innerHTML = `
+                            <td><strong>${job.job_id}</strong></td>
+                            <td>${job.client_target}</td>
+                            <td>${job.backup_engine}</td>
+                            <td>${job.data_handled_gb} GB</td>
+                            <td>
+                                <span class="badge ${isFailed ? 'badge-failed' : 'badge-success'} sla-status-text">
+                                    ${job.sla_status}
+                                </span>
+                            </td>
+                            <td>${job.execution_time_utc}</td>
+                        `;
+                        row.addEventListener('click', function () {
+                            const statusBadge = this.querySelector('.sla-status-text');
+                            if (statusBadge && statusBadge.classList.contains('badge-failed')) {
+                                openJobDiagnostics(this.dataset.jobId);
+                            }
+                        });
+                        tbody.appendChild(row);
+                    });
+
+                    const failedJobs = data.jobs.filter(job => job.sla_status === 'Failed');
+                    if (failedJobs.length > 0) {
+                        showToast(`${failedJobs.length} backup job${failedJobs.length === 1 ? '' : 's'} failed on refresh.`, failedJobs[0].job_id);
+                    }
+                })
+                .finally(() => {
+                    const refreshButton = document.getElementById('refreshDashboard');
+                    refreshButton.disabled = false;
+                    refreshButton.innerText = 'Refresh Data';
                 });
         }
     </script>
