@@ -237,12 +237,20 @@
         }
 
         function refreshDashboard() {
+            console.log('refreshDashboard invoked');
             const refreshButton = document.getElementById('refreshDashboard');
-            refreshButton.disabled = true;
-            refreshButton.innerText = 'Refreshing...';
+            if (refreshButton) {
+                refreshButton.disabled = true;
+                refreshButton.innerText = 'Refreshing...';
+            }
 
             fetch('/api/jobs/refresh')
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`Refresh request failed: ${res.status}`);
+                    }
+                    return res.json();
+                })
                 .then(data => {
                     document.getElementById('totalTb').innerText = `${data.total_tb} TB`;
                     document.getElementById('slaValue').innerText = `${data.sla_value}%`;
@@ -253,7 +261,7 @@
                     slaCard.classList.toggle('metric-healthy', data.sla_value >= 80.0);
 
                     const widgetBadge = document.getElementById('chatWidgetBadge');
-                    const failedJobs = data.jobs.filter(job => job.sla_status === 'Failed');
+                    const failedJobs = Array.isArray(data.jobs) ? data.jobs.filter(job => job.sla_status === 'Failed') : [];
                     if (failedJobs.length > 0) {
                         widgetBadge.style.display = 'inline-flex';
                         widgetBadge.innerText = failedJobs.length;
@@ -264,40 +272,48 @@
 
                     const tbody = document.getElementById('jobsTableBody');
                     tbody.innerHTML = '';
-                    data.jobs.forEach(job => {
-                        const row = document.createElement('tr');
-                        const isFailed = job.sla_status === 'Failed';
-                        row.className = `job-row ${isFailed ? 'row-failed clickable-row' : 'non-clickable-row'}`;
-                        row.dataset.jobId = job.job_id;
-                        row.innerHTML = `
-                            <td><strong>${job.job_id}</strong></td>
-                            <td>${job.client_target}</td>
-                            <td>${job.backup_engine}</td>
-                            <td>${job.data_handled_gb} GB</td>
-                            <td>
-                                <span class="badge ${isFailed ? 'badge-failed' : 'badge-success'} sla-status-text">
-                                    ${job.sla_status}
-                                </span>
-                            </td>
-                            <td>${job.execution_time_utc}</td>
-                        `;
-                        row.addEventListener('click', function () {
-                            const statusBadge = this.querySelector('.sla-status-text');
-                            if (statusBadge && statusBadge.classList.contains('badge-failed')) {
-                                openJobDiagnostics(this.dataset.jobId);
-                            }
+                    if (Array.isArray(data.jobs)) {
+                        data.jobs.forEach(job => {
+                            const row = document.createElement('tr');
+                            const isFailed = job.sla_status === 'Failed';
+                            row.className = `job-row ${isFailed ? 'row-failed clickable-row' : 'non-clickable-row'}`;
+                            row.dataset.jobId = job.job_id;
+                            row.innerHTML = `
+                                <td><strong>${job.job_id}</strong></td>
+                                <td>${job.client_target}</td>
+                                <td>${job.backup_engine}</td>
+                                <td>${job.data_handled_gb} GB</td>
+                                <td>
+                                    <span class="badge ${isFailed ? 'badge-failed' : 'badge-success'} sla-status-text">
+                                        ${job.sla_status}
+                                    </span>
+                                </td>
+                                <td>${job.execution_time_utc}</td>
+                            `;
+                            row.addEventListener('click', function () {
+                                const statusBadge = this.querySelector('.sla-status-text');
+                                if (statusBadge && statusBadge.classList.contains('badge-failed')) {
+                                    openJobDiagnostics(this.dataset.jobId);
+                                }
+                            });
+                            tbody.appendChild(row);
                         });
-                        tbody.appendChild(row);
-                    });
+                    }
+                })
+                .catch(err => {
+                    console.error('Refresh failed:', err);
+                    showToast('Refresh failed. Open console for details.');
                 })
                 .finally(() => {
                     const refreshButton = document.getElementById('refreshDashboard');
-                    refreshButton.disabled = false;
-                    refreshButton.innerText = 'Refresh Data';
+                    if (refreshButton) {
+                        refreshButton.disabled = false;
+                        refreshButton.innerText = 'Refresh Data';
+                    }
                 });
         }
 
-        window.addEventListener('DOMContentLoaded', function() {
+        function bindDashboardHandlers() {
             const refreshButton = document.getElementById('refreshDashboard');
             const chatSubmit = document.getElementById('chatSubmit');
             const chatInput = document.getElementById('chatInput');
@@ -305,6 +321,7 @@
 
             if (refreshButton) {
                 refreshButton.addEventListener('click', refreshDashboard);
+                refreshButton.onclick = refreshDashboard;
             }
             if (chatSubmit) {
                 chatSubmit.addEventListener('click', submitChatQuestion);
@@ -322,7 +339,19 @@
                     toggleChatConsole(true);
                 });
             }
-        });
+
+            window.refreshDashboard = refreshDashboard;
+            window.submitChatQuestion = submitChatQuestion;
+            window.toggleChatConsole = toggleChatConsole;
+
+            if (!refreshButton || !chatSubmit || !chatInput || !chatWidgetButton) {
+                if (document.readyState !== 'complete') {
+                    setTimeout(bindDashboardHandlers, 100);
+                }
+            }
+        }
+
+        bindDashboardHandlers();
 
         function addChatMessage(content, sender) {
             const windowEl = document.getElementById('chatWindow');
