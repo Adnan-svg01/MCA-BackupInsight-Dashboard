@@ -220,10 +220,14 @@ p {
 
 .dashboard-content {
     display: grid;
-    grid-template-columns: 1.6fr 1fr;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
     gap: 24px;
     align-items: start;
     justify-content: center;
+    justify-items: center;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
 }
 
 .jobs-section {
@@ -232,7 +236,13 @@ p {
     gap: 16px;
     margin: 0 auto;
     width: 100%;
-    max-width: 1020px;
+    max-width: 100%;
+    align-items: center;
+}
+
+.chat-panel {
+    width: 100%;
+    max-width: 400px;
 }
 
 .chat-panel {
@@ -245,7 +255,8 @@ p {
 }
 
 .jobs-table {
-    width: 100%;
+    width: min(100%, 980px);
+    margin: 0 auto;
     border-collapse: separate;
     border-spacing: 0;
     background: linear-gradient(180deg, #f8fbff, #ffffff);
