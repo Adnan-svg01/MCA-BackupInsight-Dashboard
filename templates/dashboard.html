@@ -35,10 +35,7 @@
             </div>
             <div class="refresh-actions">
                 <button class="btn-primary refresh-btn" id="refreshDashboard" type="button" onclick="refreshDashboard()">Refresh Data</button>
-                <div class="refresh-meta">
-                    <div>Last refreshed: <span id="lastRefreshed">Not yet</span></div>
-                    <div>Refresh count: <span id="refreshCount">0</span></div>
-                </div>
+                <div class="refresh-meta">Last refreshed: <span id="lastRefreshed">Not yet</span></div>
             </div>
         </div>
 
@@ -154,7 +151,6 @@
 
     <script>
         let activeJobId = null;
-        let refreshCount = 0;
 
         const cards = document.querySelectorAll('.metric-card');
         cards.forEach((card, index) => {
@@ -280,11 +276,6 @@
                     const lastRefreshed = document.getElementById('lastRefreshed');
                     if (lastRefreshed) {
                         lastRefreshed.innerText = new Date().toLocaleTimeString();
-                    }
-                    const refreshCountElement = document.getElementById('refreshCount');
-                    if (refreshCountElement) {
-                        refreshCount += 1;
-                        refreshCountElement.innerText = refreshCount;
                     }
 
                     const tbody = document.getElementById('jobsTableBody');
