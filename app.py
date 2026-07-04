@@ -1,42 +1,90 @@
-from flask import Flask, render_template
-import sqlite3
+import os
+from flask import Flask, render_template, jsonify, abort
 
 app = Flask(__name__)
 
-def get_db_connection():
-    conn = sqlite3.connect('backups.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+# 1. Your Mock Database Array containing the cross-platform backup jobs
+JOBS_DATABASE = [
+    {
+        "job_id": "JOB-105",
+        "client_target": "Bausch-Health-DR",
+        "backup_engine": "Commvault",
+        "data_handled_gb": 310.0,
+        "sla_status": "Failed",
+        "execution_time_utc": "2026-07-04 06:12:00",
+        "error_code": "0x2000001a",
+        "error_message": "MediaAgent side network connection timeout during data transfer pipeline initialization."
+    },
+    {
+        "job_id": "JOB-104",
+        "client_target": "Mail-Server-Arch",
+        "backup_engine": "Veeam",
+        "data_handled_gb": 85.2,
+        "sla_status": "Success",
+        "execution_time_utc": "2026-07-04 05:00:00"
+    },
+    {
+        "job_id": "JOB-103",
+        "client_target": "Finance-DB-Cluster",
+        "backup_engine": "Cohesity",
+        "data_handled_gb": 1200.0,
+        "sla_status": "Success",
+        "execution_time_utc": "2026-07-04 04:30:00"
+    },
+    {
+        "job_id": "JOB-102",
+        "client_target": "Bausch-Health-QA",
+        "backup_engine": "Azure-VM",
+        "data_handled_gb": 120.0,
+        "sla_status": "Failed",
+        "error_code": "VMExtensionProvisioningError",
+        "error_message": "Microsoft.Azure.RecoveryServices.VMSnapshot extension failed to provision. Ensure the VM agent is responsive."
+    },
+    {
+        "job_id": "JOB-101",
+        "client_target": "Bausch-Health-Prod",
+        "backup_engine": "Commvault",
+        "data_handled_gb": 450.5,
+        "sla_status": "Success",
+        "execution_time_utc": "2026-07-04 02:00:00"
+    }
+]
 
+# 2. Home Page Dashboard Route
 @app.route('/')
-def dashboard():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+def dashboard_home():
+    total_jobs = len(JOBS_DATABASE)
+    successful_jobs = sum(1 for j in JOBS_DATABASE if j["sla_status"] == "Success")
+    unresolved_failures = sum(1 for j in JOBS_DATABASE if j["sla_status"] == "Failed")
     
-    cursor.execute('SELECT * FROM backup_jobs ORDER BY timestamp DESC')
-    jobs = cursor.fetchall()
-    
-    cursor.execute('SELECT COUNT(*) FROM backup_jobs')
-    total_jobs = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(*) FROM backup_jobs WHERE status="Success"')
-    success_jobs = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT SUM(size_gb) FROM backup_jobs')
-    total_data_gb = cursor.fetchone()[0] or 0
-    
-    conn.close()
-    
-    failed_jobs = total_jobs - success_jobs
-    success_rate = (success_jobs / total_jobs) * 100 if total_jobs > 0 else 0
-    total_data_tb = total_data_gb / 1024
-    
+    # Calculate live SLA Success Rate Percentage
+    sla_value = round((successful_jobs / total_jobs) * 100, 1) if total_jobs > 0 else 100.0
+    total_tb = round(sum(j["data_handled_gb"] for j in JOBS_DATABASE) / 1024, 2)
+
     return render_template('dashboard.html', 
-                           jobs=jobs, 
-                           total=total_jobs, 
-                           success_rate=round(success_rate, 1),
-                           failed=failed_jobs,
-                           total_data=round(total_data_tb, 2))
+                           jobs=JOBS_DATABASE, 
+                           sla_value=sla_value, 
+                           unresolved_failures=unresolved_failures,
+                           total_tb=total_tb)
+
+# 3. API Route to Fetch a single job's error details
+@app.route('/api/job/<job_id>')
+def get_job_details(job_id):
+    job = next((j for j in JOBS_DATABASE if j["job_id"] == job_id), None)
+    if job:
+        return jsonify(job)
+    return jsonify({"error": "Job not found"}), 404
+
+# 4. API Route to process the "Retry Backup" trigger action
+@app.route('/api/job/<job_id>/retry', methods=['POST'])
+def retry_job(job_id):
+    job = next((j for j in JOBS_DATABASE if j["job_id"] == job_id), None)
+    if job:
+        job["sla_status"] = "Success"
+        if "error_code" in job: del job["error_code"]
+        if "error_message" in job: del job["error_message"]
+        return jsonify({"status": "success", "message": f"Retry command processed for {job_id}!"})
+    return jsonify({"error": "Job not found"}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)

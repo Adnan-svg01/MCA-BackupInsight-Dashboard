@@ -2,77 +2,169 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Enterprise Backup Analytics Console</title>
-    <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 40px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
-        h1 { margin: 0; color: #1a202c; }
-        .kpi-row { display: flex; gap: 24px; margin-bottom: 40px; }
-        .card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex: 1; border-top: 4px solid #cbd5e0; }
-        .card.blue { border-top-color: #3182ce; }
-        .card.green { border-top-color: #38a169; }
-        .card.red { border-top-color: #e53e3e; }
-        .card h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #718096; }
-        .card p { margin: 0; font-size: 32px; font-weight: bold; color: #2d3748; }
-        .table-wrapper { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #edf2f7; }
-        th { background-color: #f7fafc; color: #4a5568; }
-        .badge { padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
-        .Success { background-color: #c6f6d5; color: #22543d; }
-        .Failed { background-color: #fed7d7; color: #742a2a; }
-    </style>
+    <title>BackupInsight Console</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>📊 BackupInsight Console</h1>
-            <p style="margin: 5px 0 0 0; color: #718096;">MCA Cloud Computing Project &bull; Live Infrastructure Metrics</p>
-        </div>
-
-        <div class="kpi-row">
-            <div class="card blue">
-                <h3>Capacity Monitored</h3>
-                <p>{{ total_data }} TB</p>
+        <div class="hero-bar">
+            <div>
+                <h2>BackupInsight Console</h2>
+                <p>Live Infrastructure Metrics</p>
             </div>
-            <div class="card green">
-                <h3>SLA Success Rate</h3>
-                <p>{{ success_rate }}%</p>
-            </div>
-            <div class="card red">
-                <h3>Unresolved Failures</h3>
-                <p>{{ failed }}</p>
+            <div class="status-pill" id="liveStatus">
+                <span class="status-dot"></span>
+                Monitoring live
             </div>
         </div>
 
-        <div class="table-wrapper">
-            <h2>Recent Job Executions (Cross-Platform)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Job ID</th>
-                        <th>Client Target</th>
-                        <th>Backup Engine</th>
-                        <th>Data Handled</th>
-                        <th>SLA Status</th>
-                        <th>Execution Time (UTC)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for job in jobs %}
-                    <tr>
-                        <td><strong>{{ job['id'] }}</strong></td>
-                        <td>{{ job['client_name'] }}</td>
-                        <td>{{ job['platform'] }}</td>
-                        <td>{{ job['size_gb'] }} GB</td>
-                        <td><span class="badge {{ job['status'] }}">{{ job['status'] }}</span></td>
-                        <td>{{ job['timestamp'] }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <h4>CAPACITY MONITORED</h4>
+                <p class="metric-val">{{ total_tb }} TB</p>
+            </div>
+            <div class="metric-card {% if sla_value < 80.0 %}metric-breached{% else %}metric-healthy{% endif %}">
+                <h4>SLA SUCCESS RATE</h4>
+                <p class="metric-val">{{ sla_value }}%</p>
+            </div>
+            <div class="metric-card">
+                <h4>UNRESOLVED FAILURES</h4>
+                <p class="metric-val">{{ unresolved_failures }}</p>
+            </div>
+        </div>
+
+        <h3>Recent Job Executions (Cross-Platform)</h3>
+        <table class="jobs-table">
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>Client Target</th>
+                    <th>Backup Engine</th>
+                    <th>Data Handled</th>
+                    <th>SLA Status</th>
+                    <th>Execution Time (UTC)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr class="job-row {% if job.sla_status == 'Failed' %}row-failed clickable-row{% else %}non-clickable-row{% endif %}"
+                    data-job-id="{{ job.job_id }}">
+                    <td><strong>{{ job.job_id }}</strong></td>
+                    <td>{{ job.client_target }}</td>
+                    <td>{{ job.backup_engine }}</td>
+                    <td>{{ job.data_handled_gb }} GB</td>
+                    <td>
+                        <span class="badge {% if job.sla_status == 'Failed' %}badge-failed{% else %}badge-success{% endif %} sla-status-text">
+                            {{ job.sla_status }}
+                        </span>
+                    </td>
+                    <td>{{ job.execution_time_utc }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="diagnosticModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><span id="modalJobId"></span> — Diagnostic Details</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="meta-grid">
+                    <div><strong>Target:</strong> <span id="modalTarget"></span></div>
+                    <div><strong>Engine:</strong> <span id="modalEngine"></span></div>
+                </div>
+                <hr class="modal-divider">
+                <div class="error-box">
+                    <p class="error-title"><strong>Error Code:</strong> <code id="modalErrorCode"></code></p>
+                    <p class="error-desc"><strong>Root Cause Analysis:</strong></p>
+                    <p id="modalErrorMessage" class="error-text"></p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button id="retryBtn" class="btn-primary" onclick="triggerRetry()">
+                        <span id="btnText">Retry Backup Job</span>
+                        <span id="btnSpinner" class="spinner" style="display: none;"></span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <script>
+        let activeJobId = null;
+
+        const cards = document.querySelectorAll('.metric-card');
+        cards.forEach((card, index) => {
+            card.style.animationDelay = `${index * 120}ms`;
+            card.classList.add('card-animate');
+        });
+
+        const liveStatus = document.getElementById('liveStatus');
+        if (liveStatus) {
+            setInterval(() => {
+                liveStatus.classList.toggle('pulse');
+            }, 1200);
+        }
+
+        document.querySelectorAll('.job-row').forEach(row => {
+            row.addEventListener('click', function () {
+                const statusBadge = this.querySelector('.sla-status-text');
+                if (statusBadge && statusBadge.classList.contains('badge-failed')) {
+                    openJobDiagnostics(this.dataset.jobId);
+                }
+            });
+        });
+
+        function openJobDiagnostics(jobId) {
+            activeJobId = jobId;
+            const modal = document.getElementById('diagnosticModal');
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+
+            fetch(`/api/job/${jobId}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('modalJobId').innerText = data.job_id;
+                    document.getElementById('modalTarget').innerText = data.client_target;
+                    document.getElementById('modalEngine').innerText = data.backup_engine;
+                    document.getElementById('modalErrorCode').innerText = data.error_code || 'N/A';
+                    document.getElementById('modalErrorMessage').innerText = data.error_message || 'No additional details available.';
+
+                    const retryBtn = document.getElementById('retryBtn');
+                    retryBtn.disabled = false;
+                    document.getElementById('btnText').innerText = 'Retry Backup Job';
+                    document.getElementById('btnSpinner').style.display = 'none';
+                });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('diagnosticModal');
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 220);
+        }
+
+        function triggerRetry() {
+            if (!activeJobId) return;
+            const retryBtn = document.getElementById('retryBtn');
+            retryBtn.disabled = true;
+            document.getElementById('btnText').innerText = 'Re-initializing Backup Pipeline...';
+            document.getElementById('btnSpinner').style.display = 'inline-block';
+
+            fetch(`/api/job/${activeJobId}/retry`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    setTimeout(() => {
+                        alert(`Action Success: ${data.message}`);
+                        closeModal();
+                        window.location.reload();
+                    }, 1200);
+                });
+        }
+    </script>
 </body>
 </html>
