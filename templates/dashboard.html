@@ -46,18 +46,22 @@
         <div class="dashboard-content">
             <section class="jobs-section">
                 <h3>Recent Job Executions (Cross-Platform)</h3>
-                <table class="jobs-table">
-                    <thead>
-                        <tr>
-                            <th>Job ID</th>
-                            <th>Client Target</th>
-                            <th>Backup Engine</th>
-                            <th>Data Handled</th>
-                            <th>SLA Status</th>
-                            <th>Execution Time (UTC)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="jobsTableBody">
+                <div class="table-scroll">
+                    <table class="jobs-table">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Client Target</th>
+                                <th>Backup Engine</th>
+                                <th>Data Handled</th>
+                                <th>Runtime</th>
+                                <th>Throughput</th>
+                                <th>Stage</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobsTableBody">
                         {% for job in jobs %}
                         <tr class="job-row {% if job.sla_status == 'Failed' %}row-failed clickable-row{% else %}non-clickable-row{% endif %}"
                             data-job-id="{{ job.job_id }}">
@@ -65,16 +69,20 @@
                             <td>{{ job.client_target }}</td>
                             <td>{{ job.backup_engine }}</td>
                             <td>{{ job.data_handled_gb }} GB</td>
+                            <td>{{ job.duration }}</td>
+                            <td>{{ job.throughput_display }}</td>
+                            <td>{{ job.stage }}</td>
                             <td>
                                 <span class="badge {% if job.sla_status == 'Failed' %}badge-failed{% else %}badge-success{% endif %} sla-status-text">
                                     {{ job.sla_status }}
                                 </span>
                             </td>
-                            <td>{{ job.execution_time_utc }}</td>
+                            <td>{{ job.last_updated }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
             </section>
         </div>
     </div>
@@ -275,12 +283,15 @@
                             <td>${job.client_target}</td>
                             <td>${job.backup_engine}</td>
                             <td>${job.data_handled_gb} GB</td>
+                            <td>${job.duration || 'N/A'}</td>
+                            <td>${job.throughput_display || 'N/A'}</td>
+                            <td>${job.stage || 'N/A'}</td>
                             <td>
                                 <span class="badge ${isFailed ? 'badge-failed' : 'badge-success'} sla-status-text">
                                     ${job.sla_status}
                                 </span>
                             </td>
-                            <td>${job.execution_time_utc}</td>
+                            <td>${job.last_updated || job.execution_time_utc}</td>
                         `;
                         row.addEventListener('click', function () {
                             const statusBadge = this.querySelector('.sla-status-text');

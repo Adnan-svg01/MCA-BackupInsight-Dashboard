@@ -103,6 +103,30 @@ JOBS_DATABASE = [
 ]
 
 # 2. Home Page Dashboard Route
+def hydrate_job(job):
+    hydrated = dict(job)
+    hydrated.setdefault("runtime_minutes", random.randint(12, 78))
+    hydrated.setdefault("throughput_mb_s", round((hydrated["data_handled_gb"] * 1024) / max(hydrated["runtime_minutes"], 1), 1))
+    hydrated.setdefault("stage", "Completed" if hydrated["sla_status"] == "Success" else random.choice(["Validating", "Retrying", "Verifying", "Stalled"]))
+    hydrated.setdefault("last_updated", datetime.utcnow() - timedelta(minutes=random.randint(1, 12)))
+
+    try:
+        end_time = datetime.strptime(hydrated["execution_time_utc"], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        end_time = datetime.utcnow()
+
+    if "start_time_utc" not in hydrated:
+        start_time = end_time - timedelta(minutes=hydrated["runtime_minutes"])
+        hydrated["start_time_utc"] = start_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    if isinstance(hydrated["last_updated"], datetime):
+        hydrated["last_updated"] = hydrated["last_updated"].strftime("%Y-%m-%d %H:%M:%S")
+
+    hydrated["duration"] = f"{hydrated['runtime_minutes']}m"
+    hydrated["throughput_display"] = f"{hydrated['throughput_mb_s']} MB/s"
+    return hydrated
+
+
 @app.route('/')
 def dashboard_home():
     total_jobs = len(JOBS_DATABASE)
@@ -114,10 +138,11 @@ def dashboard_home():
     total_tb = round(sum(j["data_handled_gb"] for j in JOBS_DATABASE) / 1024, 2)
 
     return render_template('dashboard.html', 
-                           jobs=JOBS_DATABASE, 
+                           jobs=[hydrate_job(j) for j in JOBS_DATABASE], 
                            sla_value=sla_value, 
                            unresolved_failures=unresolved_failures,
-                           total_tb=total_tb)
+                           total_tb=total_tb,
+                           refreshed_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"))
 
 # 3. API Route to fetch the current dashboard state
 @app.route('/api/jobs')
@@ -291,7 +316,7 @@ def build_dashboard_payload():
     total_tb = round(sum(j["data_handled_gb"] for j in JOBS_DATABASE) / 1024, 2)
 
     return {
-        "jobs": JOBS_DATABASE,
+        "jobs": [hydrate_job(j) for j in JOBS_DATABASE],
         "sla_value": sla_value,
         "unresolved_failures": unresolved_failures,
         "total_tb": total_tb,
@@ -333,11 +358,23 @@ def simulate_job_updates():
             job["sla_status"] = "Success"
             job.pop("error_code", None)
             job.pop("error_message", None)
-        job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(1, 120))).strftime("%Y-%m-%d %H:%M:%S")
+
+        job["runtime_minutes"] = random.randint(12, 82)
+        job["throughput_mb_s"] = round((job["data_handled_gb"] * 1024) / max(job["runtime_minutes"], 1), 1)
+        job["stage"] = "Completed" if job["sla_status"] == "Success" else random.choice(["Validating", "Retrying", "Verifying", "Stalled"])
+        job["last_updated"] = datetime.utcnow() - timedelta(minutes=random.randint(0, 3))
+        end_time = datetime.utcnow() - timedelta(minutes=random.randint(1, 35))
+        job["execution_time_utc"] = end_time.strftime("%Y-%m-%d %H:%M:%S")
+        job["start_time_utc"] = (end_time - timedelta(minutes=job["runtime_minutes"])) .strftime("%Y-%m-%d %H:%M:%S")
 
     for job in JOBS_DATABASE:
         if job not in jobs_to_update and random.random() < 0.35:
-            job["execution_time_utc"] = (datetime.utcnow() - timedelta(minutes=random.randint(5, 90))).strftime("%Y-%m-%d %H:%M:%S")
+            job["last_updated"] = datetime.utcnow() - timedelta(minutes=random.randint(2, 14))
+            job["runtime_minutes"] = job.get("runtime_minutes", random.randint(12, 70))
+            end_time = datetime.utcnow() - timedelta(minutes=random.randint(5, 90))
+            job["execution_time_utc"] = end_time.strftime("%Y-%m-%d %H:%M:%S")
+            job["start_time_utc"] = (end_time - timedelta(minutes=job["runtime_minutes"])) .strftime("%Y-%m-%d %H:%M:%S")
+            job["throughput_mb_s"] = round((job["data_handled_gb"] * 1024) / max(job["runtime_minutes"], 1), 1)
 
 # 4. API Route to process the "Retry Backup" trigger action
 @app.route('/api/job/<job_id>/retry', methods=['POST'])
