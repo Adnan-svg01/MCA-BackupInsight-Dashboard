@@ -36,51 +36,63 @@
             <button class="btn-primary refresh-btn" id="refreshDashboard">Refresh Data</button>
         </div>
 
-        <h3>Recent Job Executions (Cross-Platform)</h3>
-        <table class="jobs-table">
-            <thead>
-                <tr>
-                    <th>Job ID</th>
-                    <th>Client Target</th>
-                    <th>Backup Engine</th>
-                    <th>Data Handled</th>
-                    <th>SLA Status</th>
-                    <th>Execution Time (UTC)</th>
-                </tr>
-            </thead>
-            <tbody id="jobsTableBody">
-                {% for job in jobs %}
-                <tr class="job-row {% if job.sla_status == 'Failed' %}row-failed clickable-row{% else %}non-clickable-row{% endif %}"
-                    data-job-id="{{ job.job_id }}">
-                    <td><strong>{{ job.job_id }}</strong></td>
-                    <td>{{ job.client_target }}</td>
-                    <td>{{ job.backup_engine }}</td>
-                    <td>{{ job.data_handled_gb }} GB</td>
-                    <td>
-                        <span class="badge {% if job.sla_status == 'Failed' %}badge-failed{% else %}badge-success{% endif %} sla-status-text">
-                            {{ job.sla_status }}
-                        </span>
-                    </td>
-                    <td>{{ job.execution_time_utc }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="assistant-banner">
+            <div>
+                <h3>Backup Support Chat</h3>
+                <p>Ask questions about failures, causes, root causes, and resolutions.</p>
+            </div>
+            <button class="btn-secondary" onclick="document.getElementById('chatInput').focus()">Ask the assistant</button>
+        </div>
 
-        <div class="chat-panel">
-            <div class="chat-header">
-                <div>
-                    <h3>Backup Support Chat</h3>
-                    <p>Ask questions about failures, causes, or resolutions.</p>
+        <div class="dashboard-content">
+            <section class="jobs-section">
+                <h3>Recent Job Executions (Cross-Platform)</h3>
+                <table class="jobs-table">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Client Target</th>
+                            <th>Backup Engine</th>
+                            <th>Data Handled</th>
+                            <th>SLA Status</th>
+                            <th>Execution Time (UTC)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobsTableBody">
+                        {% for job in jobs %}
+                        <tr class="job-row {% if job.sla_status == 'Failed' %}row-failed clickable-row{% else %}non-clickable-row{% endif %}"
+                            data-job-id="{{ job.job_id }}">
+                            <td><strong>{{ job.job_id }}</strong></td>
+                            <td>{{ job.client_target }}</td>
+                            <td>{{ job.backup_engine }}</td>
+                            <td>{{ job.data_handled_gb }} GB</td>
+                            <td>
+                                <span class="badge {% if job.sla_status == 'Failed' %}badge-failed{% else %}badge-success{% endif %} sla-status-text">
+                                    {{ job.sla_status }}
+                                </span>
+                            </td>
+                            <td>{{ job.execution_time_utc }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+
+            <aside class="chat-panel">
+                <div class="chat-header">
+                    <div>
+                        <h3>Backup Support Chat</h3>
+                        <p>Ask questions about failures, causes, or resolutions.</p>
+                    </div>
                 </div>
-            </div>
-            <div id="chatWindow" class="chat-window">
-                <div class="chat-message system-message">Ask about a backup failure or type a question like "Why did JOB-106 fail?"</div>
-            </div>
-            <div class="chat-input-row">
-                <input type="text" id="chatInput" placeholder="Ask backup support..." />
-                <button class="btn-primary" id="chatSubmit" type="button">Send</button>
-            </div>
+                <div id="chatWindow" class="chat-window">
+                    <div class="chat-message system-message">Ask about a backup failure or type a question like "Why did JOB-106 fail?"</div>
+                </div>
+                <div class="chat-input-row">
+                    <input type="text" id="chatInput" placeholder="Ask backup support..." />
+                    <button class="btn-primary" id="chatSubmit" type="button">Send</button>
+                </div>
+            </aside>
         </div>
     </div>
 
@@ -113,6 +125,10 @@
     </div>
 
     <div id="toastContainer" class="toast-container"></div>
+    <button id="chatWidgetButton" class="chat-widget-button" type="button">
+        Chat with Backup Assistant
+        <span id="chatWidgetBadge" class="chat-widget-badge" style="display:none">0</span>
+    </button>
 
     <script>
         let activeJobId = null;
@@ -220,6 +236,16 @@
                     slaCard.classList.toggle('metric-breached', data.sla_value < 80.0);
                     slaCard.classList.toggle('metric-healthy', data.sla_value >= 80.0);
 
+                    const widgetBadge = document.getElementById('chatWidgetBadge');
+                    const failedJobs = data.jobs.filter(job => job.sla_status === 'Failed');
+                    if (failedJobs.length > 0) {
+                        widgetBadge.style.display = 'inline-flex';
+                        widgetBadge.innerText = failedJobs.length;
+                        showToast(`${failedJobs.length} backup job${failedJobs.length === 1 ? '' : 's'} failed on refresh.`, failedJobs[0].job_id);
+                    } else {
+                        widgetBadge.style.display = 'none';
+                    }
+
                     const tbody = document.getElementById('jobsTableBody');
                     tbody.innerHTML = '';
                     data.jobs.forEach(job => {
@@ -247,11 +273,6 @@
                         });
                         tbody.appendChild(row);
                     });
-
-                    const failedJobs = data.jobs.filter(job => job.sla_status === 'Failed');
-                    if (failedJobs.length > 0) {
-                        showToast(`${failedJobs.length} backup job${failedJobs.length === 1 ? '' : 's'} failed on refresh.`, failedJobs[0].job_id);
-                    }
                 })
                 .finally(() => {
                     const refreshButton = document.getElementById('refreshDashboard');
@@ -277,6 +298,11 @@
             windowEl.appendChild(messageEl);
             windowEl.scrollTop = windowEl.scrollHeight;
         }
+
+        document.getElementById('chatWidgetButton').addEventListener('click', () => {
+            document.querySelector('.chat-panel').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('chatInput').focus();
+        });
 
         function submitChatQuestion() {
             const chatInput = document.getElementById('chatInput');

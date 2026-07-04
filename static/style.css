@@ -129,6 +129,46 @@ p {
     margin-bottom: 20px;
 }
 
+.assistant-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 18px 22px;
+    margin-bottom: 22px;
+    background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+    border: 1px solid #dbeafe;
+    border-radius: 18px;
+    box-shadow: 0 14px 30px rgba(59, 130, 246, 0.08);
+}
+
+.assistant-banner h3 {
+    margin-bottom: 6px;
+    color: #1d4ed8;
+}
+
+.assistant-banner p {
+    margin-bottom: 0;
+    color: #475569;
+}
+
+.dashboard-content {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.jobs-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.chat-panel {
+    margin-top: 0;
+}
+
 .refresh-btn {
     align-self: center;
     min-width: 150px;
@@ -411,6 +451,43 @@ p {
     z-index: 1100;
 }
 
+.chat-widget-button {
+    position: fixed;
+    right: 24px;
+    bottom: 100px;
+    z-index: 1200;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    border: none;
+    border-radius: 999px;
+    padding: 14px 20px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    box-shadow: 0 18px 38px rgba(37, 99, 235, 0.25);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.chat-widget-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 22px 45px rgba(37, 99, 235, 0.3);
+}
+
+.chat-widget-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    margin-left: 10px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
 .toast {
     min-width: 280px;
     padding: 14px 18px;
@@ -455,6 +532,26 @@ p {
 
 .modal-overlay.show .modal-card {
     transform: translateY(0) scale(1);
+}
+
+@media (max-width: 1024px) {
+    .dashboard-content {
+        grid-template-columns: 1fr;
+    }
+
+    .assistant-banner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .dashboard-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .refresh-btn {
+        width: 100%;
+    }
 }
 
 @media (max-width: 768px) {
